@@ -10,7 +10,7 @@ const compression = require('compression')
 
 const port = process.env.PORT || 8080;
 const dir = __dirname + "/fini8";
-const indexRoutes = ['/', '/login', '/404', '/verify'];
+const indexRoutes = ['/', '/login', '/404', '/verify', '/md'];
 const credentailsMinLength = {email: 6, pswd: 6};
 const WEBSITE = "fini8.eu";
 const logiFles = ["./request.log", "./error.log"];

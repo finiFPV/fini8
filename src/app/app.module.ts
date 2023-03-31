@@ -11,6 +11,7 @@ import { NotFoundComponent } from './not-found/not-found.component';
 import { NotificationComponent } from './notification/notification.component';
 import { VerificationComponent } from './verification/verification.component';
 import { VerifyComponent } from './verify/verify.component';
+import { MdComponent } from './md/md.component';
 
 @NgModule({
     declarations: [
@@ -20,7 +21,8 @@ import { VerifyComponent } from './verify/verify.component';
         NotFoundComponent,
         NotificationComponent,
         VerificationComponent,
-        VerifyComponent
+        VerifyComponent,
+        MdComponent
     ],
     imports: [
         BrowserModule,
