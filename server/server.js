@@ -233,7 +233,7 @@ app.use('/assets', express.static(dir + "/assets"));
 
 app.use((req, res) => res.status(404).redirect("/404"));
 app.listen(HTTP_PORT, async () => {
-    if (process.env.HTTP_PORT === undefined) {
+    if (process.env.HTTPS_PORT === undefined) {
         try {const mongo = new MongoClient(process.env.MONGODB_URI); mongo.connect(); mongoClient = mongo.db("Website").collection('Users')}
         catch (error) {logging.error(error)};
         return console.log('Server running on port ' + HTTP_PORT);
