@@ -1,5 +1,5 @@
 /* eslint-env es6 */
-const { stat, writeFile, appendFile, readFile } = require('fs')
+const { stat, writeFile, appendFile, readFile, readFileSync } = require('fs')
 const express = require('express');
 const bodyParser = require('body-parser');
 const { MongoClient } = require('mongodb');
@@ -233,14 +233,14 @@ app.use('/assets', express.static(dir + "/assets"));
 
 app.use((req, res) => res.status(404).redirect("/404"));
 app.listen(HTTP_PORT, async () => {
-    if (process.env.HTTP_PORT === undefined) {
+    if (process.env.HTTPS_PORT === undefined) {
         try {const mongo = new MongoClient(process.env.MONGODB_URI); mongo.connect(); mongoClient = mongo.db("Website").collection('Users')}
         catch (error) {logging.error(error)};
         return console.log('Server running on port ' + HTTP_PORT);
     }
     createServer({
-        key: process.env.HTTPS_KEY,
-        cert: process.env.HTTPS_CERT},
+        key: readFileSync(__dirname + '/serverAssets/privkey.pem'),
+        cert: readFileSync(__dirname + '/serverAssets/fullchain.pem'),},
     app).listen(process.env.HTTPS_PORT, async () => {
         console.log('Server running on port ' + HTTP_PORT + ' and ' + process.env.HTTPS_PORT);
         try {const mongo = new MongoClient(process.env.MONGODB_URI); mongo.connect(); mongoClient = mongo.db("Website").collection('Users')}
