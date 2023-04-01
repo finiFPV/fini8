@@ -1,14 +1,15 @@
 /* eslint-env es6 */
-const { stat, writeFile, appendFile, readFile } = require('fs')
+const { stat, writeFile, appendFile, readFile, readFileSync } = require('fs')
 const express = require('express');
 const bodyParser = require('body-parser');
 const { MongoClient } = require('mongodb');
 const { pbkdf2, timingSafeEqual, randomBytes } = require('crypto');
 const dotEnv = require('dotenv').config({path: './.env'});
 const nodeMailer = require('nodemailer');
-const compression = require('compression')
+const compression = require('compression');
+const { createServer } = require("https");
 
-const port = process.env.PORT || 8080;
+const HTTP_PORT = process.env.HTTP_PORT || 80;
 const dir = __dirname + "/fini8";
 const indexRoutes = ['/', '/login', '/404', '/verify'];
 const credentailsMinLength = {email: 6, pswd: 6};
@@ -231,9 +232,18 @@ app.use('/staticAssets', express.static(dir));
 app.use('/assets', express.static(dir + "/assets"));
 
 app.use((req, res) => res.status(404).redirect("/404"));
-
-app.listen(port, async () => {
-    console.log('Server running on port ' + port);
-    try {const mongo = new MongoClient(process.env.MONGODB_URI); mongo.connect(); mongoClient = mongo.db("Website").collection('Users')}
-    catch (error) {logging.error(error)}
-}, );
+app.listen(HTTP_PORT, async () => {
+    if (process.env.HTTPS_PORT === undefined) {
+        try {const mongo = new MongoClient(process.env.MONGODB_URI); mongo.connect(); mongoClient = mongo.db("Website").collection('Users')}
+        catch (error) {logging.error(error)};
+        return console.log('Server running on port ' + HTTP_PORT);
+    }
+    createServer({
+        key: readFileSync(__dirname + '/serverAssets/privkey.pem'),
+        cert: readFileSync(__dirname + '/serverAssets/fullchain.pem'),},
+    app).listen(process.env.HTTPS_PORT, async () => {
+        console.log('Server running on port ' + HTTP_PORT + ' and ' + process.env.HTTPS_PORT);
+        try {const mongo = new MongoClient(process.env.MONGODB_URI); mongo.connect(); mongoClient = mongo.db("Website").collection('Users')}
+        catch (error) {logging.error(error)}
+    });
+});
