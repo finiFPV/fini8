@@ -165,7 +165,7 @@ app.post('/email', async (req, res) => {
         if (user["emailVerified"] === true) return res.status(200).json({status: 409, accepted: false, message: "Email Already Verified"});
         if (user["activeVerification"] !== null) {
             parseVerifyEmailTemplate(user["activeVerification"]["code"], process.env.HTTP_MODE + "://" + WEBSITE + "/verify?token=" + user["activeVerification"]["id"], template => {
-                emailService.sendMail({from: "fini8", to: user["email"], subject: "Confirm your account for fini8", html: template}, (err, data) => {
+                emailService.sendMail({from: {name: "fini8", address: "noreply@fini8.eu"}, to: user["email"], subject: "Confirm your account for fini8", html: template}, (err, data) => {
                     if(err) { logging.error(err, "", "Email"); return res.status(200).json({status: 500, accepted: false, message: "Internal Server Error"})}
                     else return res.status(200).json({status: 200, accepted: true, message: "Email Verification Sent"});
                 });
@@ -179,7 +179,7 @@ app.post('/email', async (req, res) => {
             try {
                 await mongoClient.updateOne({email: user["email"]}, {$set: {activeVerification: {id: id, code: code}}});
                 parseVerifyEmailTemplate(code.split("").map(Number), process.env.HTTP_MODE + "://" + WEBSITE + "/verify?token=" + id, template => {
-                    emailService.sendMail({from: "fini8", to: user["email"], subject: "Confirm your account for fini8", html: template}, (err, data) => {
+                    emailService.sendMail({from: {name: "fini8", address: "noreply@fini8.eu"}, to: user["email"], subject: "Confirm your account for fini8", html: template}, (err, data) => {
                         if(err) {logging.error(err, "", "Email"); return res.status(200).json({status: 500, accepted: false, message: "Internal Server Error"})}
                         else return res.status(200).json({status: 200, accepted: true, message: "Email Verification Sent"});
                     });
