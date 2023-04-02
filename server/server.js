@@ -14,7 +14,7 @@ const dir = __dirname + "/fini8";
 const indexRoutes = ['/', '/login', '/404', '/verify'];
 const credentailsMinLength = {email: 6, pswd: 6};
 const WEBSITE = "fini8.eu";
-const logiFles = ["./request.log", "./error.log"];
+const logiFles = ["./serverAssets/request.log", "./serverAssets/error.log"];
 class Loging {
     time() {
         const dateTime = new Date();
