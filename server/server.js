@@ -4,12 +4,14 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const { MongoClient } = require('mongodb');
 const { pbkdf2, timingSafeEqual, randomBytes } = require('crypto');
-const dotEnv = require('dotenv').config({path: './.env'});
+const dotEnv = require('dotenv').config({path: './serverAssets/.env'});
 const nodeMailer = require('nodemailer');
 const compression = require('compression');
 const { createServer } = require("https");
 
 const HTTP_PORT = process.env.HTTP_PORT || 80;
+const HTTPS_PORT = process.env.HTTPS_PORT || 443;
+const startedSuccessfully = false;
 const dir = __dirname + "/fini8";
 const indexRoutes = ['/', '/login', '/404', '/verify'];
 const credentailsMinLength = {email: 6, pswd: 6};
@@ -22,10 +24,10 @@ class Loging {
         "-" + dateTime.getHours() + ":" + dateTime.getMinutes() + ":" + dateTime.getSeconds() + " ]";
     }
     error(err, msg = "MongoDB connection refused", type = "MongoDB") {
-        if (process.env.DEBUG === "true") appendFile("./error.log", `${this.time()} ${type} Error: ${msg}: ` + err, (err) => {if (err) console.error(err)});
+        if (process.env.DEBUG === "true") appendFile("./serverAssets/error.log", `${this.time()} ${type} Error: ${msg}: ` + err, (err) => {if (err) console.error(err)});
         console.error(`${this.time()} ${type} Error: ${msg}: ` + err);
     }
-    log(message) {msg = `${this.time()} ${message}`; console.log(msg); appendFile("./request.log", (msg) + "\n", (err) => {if (err) console.error(err)})};
+    log(message) {msg = `${this.time()} ${message}`; console.log(msg); appendFile("./serverAssets/request.log", (msg) + "\n", (err) => {if (err) console.error(err)})};
 }
 const parseVerifyEmailTemplate = (code, verifyLink, callback) => {
     readFile(__dirname + "/serverAssets/verifyEmail.html", "utf8", (err, data) => {
@@ -111,7 +113,7 @@ if (process.env.DEBUG === "true") {
         ip = ip.substr(0, 7) == "::ffff:" ? ip.substr(7) : ip;
         msg = logging.time() + " ( " + ip + " ) " + req.protocol + " " + req.method + " " + req.url + (JSON.stringify(req.body) === "{}" ? "" : (" {body: " + JSON.stringify(req.body)) + "}")
         console.log(msg);
-        appendFile("./request.log", (msg) + "\n", (err) => {if (err) console.error(err)}); next();
+        appendFile("./serverAssets/request.log", (msg) + "\n", (err) => {if (err) console.error(err)}); next();
     });
 }
 
@@ -233,17 +235,16 @@ app.use('/assets', express.static(dir + "/assets"));
 
 app.use((req, res) => res.status(404).redirect("/404"));
 app.listen(HTTP_PORT, async () => {
-    if (process.env.HTTPS_PORT === undefined) {
-        try {const mongo = new MongoClient(process.env.MONGODB_URI); mongo.connect(); mongoClient = mongo.db("Website").collection('Users')}
-        catch (error) {logging.error(error)};
-        return console.log('Server running on port ' + HTTP_PORT);
-    }
-    createServer({
-        key: readFileSync(__dirname + '/serverAssets/privkey.pem'),
-        cert: readFileSync(__dirname + '/serverAssets/fullchain.pem'),},
-    app).listen(process.env.HTTPS_PORT, async () => {
-        console.log('Server running on port ' + HTTP_PORT + ' and ' + process.env.HTTPS_PORT);
-        try {const mongo = new MongoClient(process.env.MONGODB_URI); mongo.connect(); mongoClient = mongo.db("Website").collection('Users')}
-        catch (error) {logging.error(error)}
+    console.log(`HTTP server running on port ${HTTP_PORT}`);
+    const httpsOptions = process.env.HTTP_MODE === "https" ?
+    {key: readFileSync(__dirname + '/serverAssets/privkey.pem'), cert: readFileSync(__dirname + '/serverAssets/fullchain.pem')} : {};
+    createServer(httpsOptions, app).listen(HTTPS_PORT, async () => {
+        console.log(`HTTP and HTTPS server running on ports ${HTTP_PORT} and ${HTTPS_PORT}`);
+        try {
+            const mongo = new MongoClient(process.env.MONGODB_URI);
+            await mongo.connect();
+            mongoClient = mongo.db("Website").collection('Users');
+            console.log('Connected to MongoDB');
+        } catch (error) {logging.error(error)};
     });
 });
