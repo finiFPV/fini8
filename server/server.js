@@ -97,6 +97,11 @@ if (process.env.RATE_LIMIT_ENABLED === undefined ? true : process.env.RATE_LIMIT
     })
 }
 
+app.use((req, res, next) => {
+    if (req.protocol !== process.env.HTTP_MODE) return res.redirect(301, process.env.HTTP_MODE+"://"+req.headers.host+req.url);
+    next()
+})
+
 //Compression
 app.use(compression());
 
@@ -237,7 +242,7 @@ app.use((req, res) => res.status(404).redirect("/404"));
 app.listen(HTTP_PORT, async () => {
     console.log(`HTTP server running on port ${HTTP_PORT}`);
     const httpsOptions = process.env.HTTP_MODE === "https" ?
-    {key: readFileSync(__dirname + '/serverAssets/privkey.pem'), cert: readFileSync(__dirname + '/serverAssets/fullchain.pem')} : {};
+        {key: readFileSync(__dirname + '/serverAssets/privkey.pem'), cert: readFileSync(__dirname + '/serverAssets/fullchain.pem')} : {};
     createServer(httpsOptions, app).listen(HTTPS_PORT, async () => {
         console.log(`HTTP and HTTPS server running on ports ${HTTP_PORT} and ${HTTPS_PORT}`);
         try {
