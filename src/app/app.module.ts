@@ -11,6 +11,7 @@ import { NotFoundComponent } from './not-found/not-found.component';
 import { NotificationComponent } from './notification/notification.component';
 import { VerificationComponent } from './verification/verification.component';
 import { VerifyComponent } from './verify/verify.component';
+import { UnderConstructionComponent } from './under-construction/under-construction.component';
 import { MdComponent } from './md/md.component';
 
 @NgModule({
@@ -22,6 +23,7 @@ import { MdComponent } from './md/md.component';
         NotificationComponent,
         VerificationComponent,
         VerifyComponent,
+        UnderConstructionComponent,
         MdComponent
     ],
     imports: [
