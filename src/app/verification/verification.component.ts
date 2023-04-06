@@ -11,9 +11,8 @@ import { UserDataService } from "../user-data.service";
 export class VerificationComponent {
     resendTimes = {regular: 120, error: 10};
     code=["", "", "", "", "", ""];
-    userDataService: UserDataService;
     @Output() notify: EventEmitter<{message: string, status: "success" | "error"}> = new EventEmitter()
-    constructor(private http: HttpClient, userDataService: UserDataService) {this.userDataService = userDataService}
+    constructor(private http: HttpClient) {}
     sendVerificationEmail = (type = "sendVerification") => {
         const resendLink = document.getElementById("resendLink") as HTMLAnchorElement;
         const resendClock = document.getElementById("resendClock") as HTMLSpanElement;

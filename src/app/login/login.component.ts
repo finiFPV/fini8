@@ -119,9 +119,13 @@ export class LoginComponent {
                     unknownError :
                 unknownError
             // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-            this.userDataService.set(response.userData!);
+            //document.cookie = `authToken=${response.authToken!};expires=${new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toUTCString()};path=/`;
             loadingComponent.loadingStop();
             this.addNotification(message, response.accepted ? "success" : "error");
+            if (response.accepted && type === "register") {
+
+            }
+            /*
             if (response.accepted && ((type === "login" && this.userDataService.get().emailVerified === false) || type === "register")) {
                 const verificationComponent = new VerificationComponent(this.http, this.userDataService);
                 verificationComponent.verificationActivate();
@@ -147,7 +151,7 @@ export class LoginComponent {
                     });
                 }, 5000);
             }
-        });
+        */});
     }
     checkCredentials(): void {
         const registerBtn = document.getElementById("register") as HTMLButtonElement;

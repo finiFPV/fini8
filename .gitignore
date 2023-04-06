@@ -46,5 +46,6 @@ Thumbs.db
 #server files
 /server/node_modules
 /server/fini8
+/server/fini81
 
 .env
