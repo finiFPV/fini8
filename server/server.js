@@ -3,7 +3,7 @@ const { stat, writeFile, appendFile, readFile, readFileSync } = require('fs')
 const express = require('express');
 const bodyParser = require('body-parser');
 const { MongoClient } = require('mongodb');
-const { pbkdf2, timingSafeEqual, randomBytes } = require('crypto');
+const { pbkdf2, timingSafeEqual, randomBytes, createHash } = require('crypto');
 const dotEnv = require('dotenv').config({path: './serverAssets/.env'});
 const nodeMailer = require('nodemailer');
 const compression = require('compression');
@@ -17,6 +17,7 @@ const indexRoutes = ['/', '/login', '/404', '/verify', '/under-construction'];
 const credentailsMinLength = {email: 6, pswd: 6};
 const WEBSITE = "fini8.eu";
 const logiFles = ["./serverAssets/request.log", "./serverAssets/error.log"];
+const forbidenData = ["pswd", "_id"]
 class Loging {
     time() {
         const dateTime = new Date();
@@ -130,26 +131,26 @@ app.post('/handle_data', async (req, res) => {
     if (
         req.body["type"] === "login" && (!req.body.hasOwnProperty("data") || (typeof req.body["data"] !== "object" || Array.isArray(req.body["data"]) || req.body["data"] === null) ||
             !["email", "pswd"].every(key => req.body["data"].hasOwnProperty(key) && typeof req.body["data"][key] === "string")
-        ) ||
-        req.body["type"] === "register" && (
+        ) || req.body["type"] === "register" && (
             (!req.body.hasOwnProperty("data") || (typeof req.body["data"] !== "object" || Array.isArray(req.body["data"]) || req.body["data"] === null) ||
             !["email", "pswd"].every(key => req.body["data"].hasOwnProperty(key) && typeof req.body["data"][key] === "string")) ||
             (req.body["data"]["email"].length < credentailsMinLength.email || req.body["data"]["pswd"].length < credentailsMinLength.pswd)
-        )
+        ) || req.body["type"] === "retrieveData" && !(
+            req.body.hasOwnProperty("authToken") && (/[0-9A-Fa-f]{64}/.test(req.body["authToken"])) && req.body.hasOwnProperty("requestedData") &&
+            (typeof req.body["requestedData"] === "string" || Array.isArray(req.body["requestedData"]) && req.body["requestedData"].every(item => typeof item === "string")))
     ) return res.status(200).json({status: 400, accepted: false, message: "Bad Request"});
+    const ip = createHash('sha256').update((req.headers['x-forwarded-for'] || req.socket.remoteAddress)).digest('hex');;
     if (req.body["type"] === "login") {
         const user = await mongoClient.collection('Users').findOne({email: {$eq: req.body["data"]["email"]}});
         if (user === null) return res.status(200).json({status: 401, accepted: false, message: "Invalid Credentials" });
         else if (user["email"] === req.body["data"]["email"]) {
             pbkdf2(req.body["data"]["pswd"], user["pswd"]["salt"], 1000000, 32, 'sha256', async (err, derivedKey) => {
                 if (timingSafeEqual(Buffer.from(user["pswd"]["hash"], 'hex'), derivedKey)) {
-                    let session = await mongoClient.collection('Sessions').findOne({userDocumentID: {$eq: user._id}, userAgent: {$eq: req.get('User-Agent')}});
+                    let session = await mongoClient.collection('Sessions').findOne({userDocumentID: {$eq: user._id}, userAgent: {$eq: req.get('User-Agent')}, ip: {$eq: ip}});
                     if (session === null) {
-                        await pbkdf2(user._id.id.toString('hex'), randomBytes(Math.ceil(8)).toString('hex').slice(0, 16), 1000, 32, 'sha256', async (err, derivedKey) => {
-                            token = derivedKey.toString('hex');
-                            await mongoClient.collection('Sessions').insertOne({userDocumentID: user._id, userAgent: req.get('User-Agent'), createdAt: new Date(), token: token});
-                            return res.status(200).json({status: 200, accepted: true, authToken: token});
-                        });
+                        const token = await createHash('sha256').update(user._id.id.toString('hex')).digest('hex');
+                        await mongoClient.collection('Sessions').insertOne({userDocumentID: user._id, userAgent: req.get('User-Agent'), ip: ip, createdAt: new Date(), token: token});
+                        return res.status(200).json({status: 200, accepted: true, authToken: token});
                     } else return res.status(200).json({status: 200, accepted: true, authToken: session.token});
                 }
                 else return res.status(200).json({status: 401, accepted: false, message: "Invalid Credentials"});
@@ -164,26 +165,36 @@ app.post('/handle_data', async (req, res) => {
                 const regResults = await mongoClient.collection('Users').insertOne(
                     {email: req.body["data"]["email"], pswd: {hash: derivedKey.toString('hex'), salt: salt}, emailVerified: false, activeVerification: null}
                 );
-                await pbkdf2(regResults.insertedId.id.toString('hex'), randomBytes(Math.ceil(8)).toString('hex').slice(0, 16), 1000, 32, 'sha256', async (err, derivedKey) => {
-                    token = derivedKey.toString('hex')
-                    await mongoClient.collection('Sessions').insertOne({userDocumentID: regResults.insertedId, userAgent: req.get('User-Agent'), createdAt: new Date(), token: token});
-                    return res.status(200).json({status: 201, accepted: true, authToken: token});
-                });
+                const token = await createHash('sha256').update(regResults.insertedId.id.toString('hex')).digest('hex');
+                await mongoClient.collection('Sessions').insertOne({userDocumentID: regResults.insertedId, userAgent: req.get('User-Agent'), ip: ip, createdAt: new Date(), token: token});
+                return res.status(200).json({status: 201, accepted: true, authToken: token});
             });
         }
+    } else if (req.body["type"] === "retrieveData") {
+        const session = await mongoClient.collection('Sessions').findOne({token: {$eq: req.body["authToken"]}, userAgent: {$eq: req.get('User-Agent')}, ip: {$eq: ip}});
+        if (session === null) return res.status(200).json({status: 401, accepted: false, message: "Invalid Session Token"});
+        const user = await mongoClient.collection('Users').findOne({_id: {$eq: session.userDocumentID}});
+        const requestedData = {};
+        if (Array.isArray(req.body["requestedData"]) ? req.body["requestedData"].some(key => forbidenData.includes(key)):forbidenData.includes(req.body["requestedData"])
+        ) return res.status(200).json({status: 401, accepted: false, message: "Querying Forbiden Data"});
+        if (Array.isArray(req.body["requestedData"]) ? req.body["requestedData"].some(key => (requestedData[key] = user[key]) == null):
+        (requestedData[req.body["requestedData"]] = user[req.body["requestedData"]]) == null) return res.status(200).json({status: 404, accepted: false, message: "Requested Data Not Found"});
+        return res.status(200).json({status: 200, accepted: true, requestedData: requestedData});
     } else return res.status(200).json({status: 405, accepted: false, message: "Type Not Allowed"});
 })
 
 //Email verification system
 app.post('/email', async (req, res) => {
     if (
-        (req.body["type"] === "sendVerification" || req.body["type"] === "cheackVerification") && (!req.body.hasOwnProperty("authToken") || typeof req.body["authToken"] !== "string") ||
+        (req.body["type"] === "sendVerification" || req.body["type"] === "cheackVerification") && (!req.body.hasOwnProperty("authToken") || !(/[0-9A-Fa-f]{64}/.test(req.body["authToken"]))) ||
         req.body["type"] === "finishVerification" && !(
-            (req.body.hasOwnProperty("id") && typeof req.body["id"] === "string") || ["code", "authToken"].every(key => req.body.hasOwnProperty(key) && typeof req.body[key] === "string")
+            (req.body.hasOwnProperty("id") && typeof req.body["id"] === "string") || (["code", "authToken"].every(key => req.body.hasOwnProperty(key) && typeof req.body[key] === "string") ||
+            !(/[0-9A-Fa-f]{64}/.test(req.body["authToken"])))
         )
     ) return res.status(200).json({status: 400, accepted: false, message: "Bad Request"});
+    const ip = createHash('sha256').update((req.headers['x-forwarded-for'] || req.socket.remoteAddress)).digest('hex');
     if (req.body["type"] === "sendVerification") {
-        const session = await mongoClient.collection('Sessions').findOne({token: {$eq: req.body["authToken"]}});
+        const session = await mongoClient.collection('Sessions').findOne({token: {$eq: req.body["authToken"]}, userAgent: {$eq: req.get('User-Agent')}, ip: {$eq: ip}});
         if (session === null) return res.status(200).json({status: 401, accepted: false, message: "Invalid Session Token"});
         const user = await mongoClient.collection('Users').findOne({_id: {$eq: session["userDocumentID"]}});
         if (user["emailVerified"] === true) return res.status(200).json({status: 409, accepted: false, message: "Email Already Verified"});
@@ -197,42 +208,49 @@ app.post('/email', async (req, res) => {
         }
         if (user["activeVerification"] !== null) send(user["activeVerification"]["code"], user["activeVerification"]["id"])
         else {
-            let id, code; let dataExists = true;
-            while(dataExists) {
-                id = randomBytes(8).toString('hex'); code = String(Math.floor(100000 + Math.random() * 900000));
-                dataExists = (await mongoClient.collection('Users').findOne({$or: [{"activeVerification.id": {$eq: id}}, {"activeVerification.code": {$eq: code}}]})) !== null;
+            let id; let idExists = true;
+            while(idExists) {
+                id = randomBytes(8).toString('hex');
+                idExists = (await mongoClient.collection('Users').findOne({"activeVerification.id": {$eq: id}})) !== null;
             };
-            try { await mongoClient.collection('Users').updateOne({email: user["email"]}, {$set: {activeVerification: {id: id, code: code}}}); send(code.split("").map(Number), id)}
+            const code = String(Math.floor(100000 + Math.random() * 900000));
+            try {await mongoClient.collection('Users').updateOne({email: user["email"]}, {$set: {activeVerification: {id: id, code: code}}}); send(code.split("").map(Number), id)}
             catch (error) {logging.error(error, "MongoDB document update refused"); return res.status(200).json({status: 500, accepted: false, message: "Internal Server Error"})}
         };
     } else if (req.body["type"] === "finishVerification") {
         if (req.body.hasOwnProperty("id")) {
             if (!(/[0-9A-Fa-f]{16}/.test(req.body.id))) return res.status(200).json({status: 400, accepted: false, message: "Id Not Valid"});
-            const session = await mongoClient.collection('Sessions').findOne({token: {$eq: req.body["authToken"]}});
-            if (session === null) return res.status(200).json({status: 401, accepted: false, message: "Invalid Session Token"});
-            await mongoClient.collection('Users').findOne({_id: {$eq: session["userDocumentID"]}}).then(async (user) => {
-                if (user["activeVerification"] === null || user["activeVerification"]["id"] !== req.body.id) return res.status(200).json({status: 406, accepted: false, message: "Id Not Valid"});
-                await mongoClient.collection('Users').updateOne({_id: {$eq: session["userDocumentID"]}}, {$set: {emailVerified: true, activeVerification: null}})
+            await mongoClient.collection('Users').findOne({"activeVerification.id": {$eq: req.body.id}}).then(async (user) => {
+                if (user === null) return res.status(200).json({status: 406, accepted: false, message: "Id Not Valid"});
+                await mongoClient.collection('Users').updateOne({_id: {$eq: user._id}}, {$set: {emailVerified: true, activeVerification: null}})
                 const len = user.email.indexOf("@"); const txtLen = Math.floor(len*.3);
-                return res.status(200).json({status: 200, accepted: true, requestedData: "*".repeat(len-(txtLen>=4?4:txtLen)) + user.email.substring(len-(txtLen>=4?4:txtLen))});
+                return res.status(200).json({status: 200, accepted: true, requestedData: {
+                    email: "*".repeat(len-(txtLen>=4?4:txtLen)) + user.email.substring(len-(txtLen>=4?4:txtLen))
+                }});
             });
         } else if (req.body.hasOwnProperty("code")) {
             if (!(/[0-9]{6}/.test(req.body.code))) return res.status(200).json({status: 400, accepted: false, message: "Code Not Valid"});
-            else {
-                const session = await mongoClient.collection('Sessions').findOne({token: {$eq: req.body["authToken"]}});
-                if (session === null) return res.status(200).json({status: 401, accepted: false, message: "Invalid Session Token"});
-                await mongoClient.collection('Users').findOne({_id: {$eq: session["userDocumentID"]}}).then(async (user) => {
-                    if (user["activeVerification"] === null || user["activeVerification"]["code"] !== req.body.code) return res.status(200).json({status: 406, accepted: false, message: "Code Not Valid"});
-                    await mongoClient.collection('Users').updateOne({_id: {$eq: session["userDocumentID"]}}, {$set: {emailVerified: true, activeVerification: null}})
-                    const len = user.email.indexOf("@"); const txtLen = Math.floor(len*.3);
-                    return res.status(200).json({status: 200, accepted: true, requestedData: "*".repeat(len-(txtLen>=4?4:txtLen)) + user.email.substring(len-(txtLen>=4?4:txtLen))});
-                });
-            }
+            const session = await mongoClient.collection('Sessions').findOne({token: {$eq: req.body["authToken"]}, userAgent: {$eq: req.get('User-Agent')}, ip: {$eq: ip}});
+            if (session === null) return res.status(200).json({status: 401, accepted: false, message: "Invalid Session Token"});
+            await mongoClient.collection('Users').findOne({_id: {$eq: session["userDocumentID"]}}).then(async (user) => {
+                if (user["activeVerification"] === null) return res.status(200).json({status: 409, accepted: false, message: "Already Verified"});
+                if (user["activeVerification"]["code"] !== req.body.code) return res.status(200).json({status: 406, accepted: false, message: "Code Not Valid"});
+                await mongoClient.collection('Users').updateOne({_id: {$eq: session["userDocumentID"]}}, {$set: {emailVerified: true, activeVerification: null}})
+                const len = user.email.indexOf("@"); const txtLen = Math.floor(len*.3);
+                return res.status(200).json({status: 200, accepted: true, requestedData: {
+                    email: "*".repeat(len-(txtLen>=4?4:txtLen)) + user.email.substring(len-(txtLen>=4?4:txtLen))
+                }});
+            });
         } else return res.status(200).json({status: 500, accepted: false, message: "Internal Server Error"});
     } else if (req.body["type"] === "cheackVerification") {
-        const session = await mongoClient.collection('Sessions').findOne({token: {$eq: req.body["authToken"]}});
+        const session = await mongoClient.collection('Sessions').findOne({token: {$eq: req.body["authToken"]}, userAgent: {$eq: req.get('User-Agent')}, ip: {$eq: ip}});
         if (session === null) return res.status(200).json({status: 401, accepted: false, message: "Invalid Session Token"});
-        return res.status(200).json({status: 200, accepted: true, requestedData: (await mongoClient.collection('Users').findOne({_id: {$eq: session["userDocumentID"]}}))["emailVerified"]});;
+        const user = await mongoClient.collection('Users').findOne({_id: {$eq: session["userDocumentID"]}})
+        const len = user["email"].indexOf("@"); const txtLen = Math.floor(len*.3);
+        return res.status(200).json({status: 200, accepted: true, requestedData: {
+            emailVarified: user["emailVerified"],
+            email: "*".repeat(len-(txtLen>=4?4:txtLen)) + user["email"].substring(len-(txtLen>=4?4:txtLen))
+        }});
     } else return res.status(200).json({status: 405, accepted: false, message: "Type Not Allowed"});
 })
 

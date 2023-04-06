@@ -6,6 +6,7 @@ import { VerificationComponent } from "../verification/verification.component";
 import { v4 as uuidv4 } from 'uuid';
 import { HandleDataResponse } from "../handle-data-response";
 import { UserDataService } from "../user-data.service";
+import { Router } from '@angular/router';
 
 @Component({
     selector: "app-login",
@@ -21,7 +22,7 @@ export class LoginComponent {
     errors = {emailMessageToggled: false, pswdHadSpaces: false};
     userDataService: UserDataService;
 
-    constructor(private http: HttpClient, userDataService: UserDataService) {
+    constructor(private http: HttpClient, userDataService: UserDataService, private router: Router) {
         this.userDataService = userDataService;
     }
     removeNotification(id: string): void {
@@ -119,39 +120,37 @@ export class LoginComponent {
                     unknownError :
                 unknownError
             // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-            //document.cookie = `authToken=${response.authToken!};expires=${new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toUTCString()};path=/`;
+            const authToken = response.authToken!; const initResponse = response;
             loadingComponent.loadingStop();
             this.addNotification(message, response.accepted ? "success" : "error");
-            if (response.accepted && type === "register") {
-
-            }
-            /*
-            if (response.accepted && ((type === "login" && this.userDataService.get().emailVerified === false) || type === "register")) {
-                const verificationComponent = new VerificationComponent(this.http, this.userDataService);
-                verificationComponent.verificationActivate();
-                const cheackInterval = setInterval(() => {
-                    this.http.post<HandleDataResponse>(
-                        "/email",
-                        {type: "cheackVerification", email: this.userDataService.get().email, pswdHash: this.userDataService.get().pswd.hash},
-                        {headers: new HttpHeaders({"Content-Type": "application/json"})}
-                    ).subscribe((response) => {
-                        if (!response.accepted) {
-                            this.addNotification("An unknown error occurred!", "error");
-                            clearInterval(cheackInterval);
-                        }
-                        else if (response.userData?.emailVerified) {
-                            const len = this.userDataService.get().email.indexOf("@");
-                            const txtLen = Math.floor(len*.3);
-                            this.addNotification("Successfully verified email address: " + "*".repeat(len-(txtLen>=4?4:txtLen)) + this.userDataService.get().email.substring(len-(txtLen>=4?4:txtLen)) + "." + " You can continue now.", "success");
-                            this.userDataService.set(response.userData);
-                            (document.getElementById("emailVerification") as HTMLDivElement).style.display = "none";
-                            (document.getElementById("container") as HTMLDivElement).style.display = "";
-                            clearInterval(cheackInterval);
-                        }
-                    });
-                }, 5000);
-            }
-        */});
+            this.http.post<HandleDataResponse>(
+                "/handle_data",
+                {type: "cheackVerification", authToken: authToken},
+                {headers: new HttpHeaders({"Content-Type": "application/json"})}
+            ).subscribe((response) => {
+                if (initResponse.accepted && (type === "register" || type === "login" && !response.requestedData["emailVerified"])) {
+                    const verificationComponent = new VerificationComponent(this.http);
+                    verificationComponent.verificationActivate();
+                    const cheackInterval = setInterval(() => {
+                        this.http.post<HandleDataResponse>(
+                            "/email",
+                            {type: "cheackVerification", authToken: authToken},
+                            {headers: new HttpHeaders({"Content-Type": "application/json"})}
+                        ).subscribe((response) => {
+                            if (!response.accepted) {this.addNotification("An unknown error occurred!", "error");clearInterval(cheackInterval)}
+                            else if (response.requestedData["emailVerified"]) {
+                                this.addNotification("Successfully verified email address: " + response.requestedData["email"] + "." + " You can continue now.", "success");
+                                (document.getElementById("emailVerification") as HTMLDivElement).style.display = "none";
+                                (document.getElementById("container") as HTMLDivElement).style.display = "";
+                                clearInterval(cheackInterval);
+                                document.cookie = `authToken=${authToken};expires=${new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toUTCString()};path=/`;
+                                this.router.navigate(["/"]);
+                            }
+                        });
+                    }, 5000);
+                }
+            });
+        });
     }
     checkCredentials(): void {
         const registerBtn = document.getElementById("register") as HTMLButtonElement;

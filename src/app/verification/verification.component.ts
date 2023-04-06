@@ -1,7 +1,6 @@
 import { Component, Output, EventEmitter } from '@angular/core';
 import { HttpClient, HttpHeaders } from "@angular/common/http";
 import { HandleDataResponse } from "../handle-data-response";
-import { UserDataService } from "../user-data.service";
 
 @Component({
     selector: 'app-verification',
