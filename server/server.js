@@ -8,6 +8,7 @@ const dotEnv = require('dotenv').config({path: './serverAssets/.env'});
 const nodeMailer = require('nodemailer');
 const compression = require('compression');
 const { createServer } = require("https");
+const { v4: uuidv4 } = require('uuid');
 
 const HTTP_PORT = process.env.HTTP_PORT || 80;
 const HTTPS_PORT = process.env.HTTPS_PORT || 443;
@@ -148,7 +149,7 @@ app.post('/handle_data', async (req, res) => {
                 if (timingSafeEqual(Buffer.from(user["pswd"]["hash"], 'hex'), derivedKey)) {
                     let session = await mongoClient.collection('Sessions').findOne({userDocumentID: {$eq: user._id}, userAgent: {$eq: req.get('User-Agent')}, ip: {$eq: ip}});
                     if (session === null) {
-                        const token = await createHash('sha256').update(user._id.id.toString('hex')).digest('hex');
+                        const token = await createHash('sha256').update(user._id.id.toString('hex') + uuidv4() + ip).digest('hex');
                         await mongoClient.collection('Sessions').insertOne({userDocumentID: user._id, userAgent: req.get('User-Agent'), ip: ip, createdAt: new Date(), token: token});
                         return res.status(200).json({status: 200, accepted: true, authToken: token});
                     } else return res.status(200).json({status: 200, accepted: true, authToken: session.token});
@@ -165,7 +166,7 @@ app.post('/handle_data', async (req, res) => {
                 const regResults = await mongoClient.collection('Users').insertOne(
                     {email: req.body["data"]["email"], pswd: {hash: derivedKey.toString('hex'), salt: salt}, emailVerified: false, activeVerification: null}
                 );
-                const token = await createHash('sha256').update(regResults.insertedId.id.toString('hex')).digest('hex');
+                const token = await createHash('sha256').update(regResults.insertedId.id.toString('hex') + uuidv4() + ip).digest('hex');
                 await mongoClient.collection('Sessions').insertOne({userDocumentID: regResults.insertedId, userAgent: req.get('User-Agent'), ip: ip, createdAt: new Date(), token: token});
                 return res.status(200).json({status: 201, accepted: true, authToken: token});
             });
