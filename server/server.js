@@ -18,6 +18,7 @@ const credentailsMinLength = {email: 6, pswd: 6};
 const WEBSITE = process.env.WEBSITE || "fini8.eu";
 const logFiles = ["./serverAssets/request.log", "./serverAssets/error.log"];
 const forbidenData = ["pswd", "_id"]
+const authorizedData = ["activeVerification"]
 class Loging {
     time() {
         const dateTime = new Date();
@@ -177,6 +178,8 @@ app.post('/handle_data', async (req, res) => {
         if (!req.body.hasOwnProperty("requestedData")) return res.status(200).json({status: 200, accepted: true, requestedData: {sessionValid: session !== null}});
         const user = await mongoClient.collection('Users').findOne({_id: {$eq: session.userDocumentID}});
         const requestedData = {};
+        if (user.emailVerified === false && (Array.isArray(req.body["requestedData"]) ? req.body["requestedData"].some(key => authorizedData.includes(key)):authorizedData.includes(req.body["requestedData"]))
+        ) return res.status(200).json({status: 401, accepted: false, message: "Querying Data That Requires Email Verification While Email Is Not Verified"});
         if (Array.isArray(req.body["requestedData"]) ? req.body["requestedData"].some(key => forbidenData.includes(key)):forbidenData.includes(req.body["requestedData"])
         ) return res.status(200).json({status: 401, accepted: false, message: "Querying Forbiden Data"});
         if (Array.isArray(req.body["requestedData"]) ? req.body["requestedData"].some(key => (requestedData[key] = user[key]) == null):
