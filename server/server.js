@@ -249,7 +249,7 @@ app.post('/email', async (req, res) => {
         const user = await mongoClient.collection('Users').findOne({_id: {$eq: session["userDocumentID"]}})
         const len = user["email"].indexOf("@"); const txtLen = Math.floor(len*.3);
         return res.status(200).json({status: 200, accepted: true, requestedData: {
-            emailVarified: user["emailVerified"],
+            emailVerified: user["emailVerified"],
             email: "*".repeat(len-(txtLen>=4?4:txtLen)) + user["email"].substring(len-(txtLen>=4?4:txtLen))
         }});
     } else return res.status(200).json({status: 405, accepted: false, message: "Type Not Allowed"});

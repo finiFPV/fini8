@@ -5,7 +5,7 @@ import { LoadingComponent } from "../loading/loading.component";
 import { VerificationComponent } from "../verification/verification.component";
 import { v4 as uuidv4 } from 'uuid';
 import { HandleDataResponse } from "../handle-data-response";
-import { UserDataService } from "../user-data.service";
+import { TempStorageService } from "../temp-storage.service";
 import { Router } from '@angular/router';
 
 @Component({
@@ -20,11 +20,9 @@ export class LoginComponent {
     pswdRevealed: {[name: string]: boolean} = {"Registration": false, "Login": false};
     notifications: Array<{message: string, id: string, type: string}> = [];
     errors = {emailMessageToggled: false, pswdHadSpaces: false};
-    userDataService: UserDataService;
+    private tempStorage: TempStorageService;
 
-    constructor(private http: HttpClient, userDataService: UserDataService, private router: Router) {
-        this.userDataService = userDataService;
-    }
+    constructor(private http: HttpClient, tempStorage: TempStorageService, private router: Router) {this.tempStorage = tempStorage}
     removeNotification(id: string): void {
         const notification = document.getElementById(id) as HTMLDivElement;
         notification.classList.add("slideOutAnimation");
@@ -124,12 +122,13 @@ export class LoginComponent {
             loadingComponent.loadingStop();
             this.addNotification(message, response.accepted ? "success" : "error");
             this.http.post<HandleDataResponse>(
-                "/handle_data",
+                "/email",
                 {type: "cheackVerification", authToken: authToken},
                 {headers: new HttpHeaders({"Content-Type": "application/json"})}
             ).subscribe((response) => {
                 if (initResponse.accepted && (type === "register" || type === "login" && !response.requestedData["emailVerified"])) {
-                    const verificationComponent = new VerificationComponent(this.http);
+                    this.tempStorage.set({"authToken": authToken})
+                    const verificationComponent = new VerificationComponent(this.http, this.tempStorage);
                     verificationComponent.verificationActivate();
                     const cheackInterval = setInterval(() => {
                         this.http.post<HandleDataResponse>(

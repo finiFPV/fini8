@@ -1,6 +1,7 @@
 import { Component, Output, EventEmitter } from '@angular/core';
 import { HttpClient, HttpHeaders } from "@angular/common/http";
 import { HandleDataResponse } from "../handle-data-response";
+import { TempStorageService } from '../temp-storage.service';
 
 @Component({
     selector: 'app-verification',
@@ -8,11 +9,14 @@ import { HandleDataResponse } from "../handle-data-response";
     styleUrls: ['./verification.component.scss']
 })
 export class VerificationComponent {
-    resendTimes = {regular: 120, error: 10};
-    code=["", "", "", "", "", ""];
-    @Output() notify: EventEmitter<{message: string, status: "success" | "error"}> = new EventEmitter()
-    constructor(private http: HttpClient) {}
-    sendVerificationEmail = (type = "sendVerification") => {
+    resendTimes = { regular: 120, error: 10 };
+    code = ["", "", "", "", "", ""];
+    @Output() notify: EventEmitter<{ message: string, status: "success" | "error" }> = new EventEmitter()
+    private tempStorage: TempStorageService
+    constructor(private http: HttpClient, tempStorage: TempStorageService) {
+        this.tempStorage = tempStorage;
+    }
+    sendVerificationEmail(type = "sendVerification"): void {
         const resendLink = document.getElementById("resendLink") as HTMLAnchorElement;
         const resendClock = document.getElementById("resendClock") as HTMLSpanElement;
         const resendLoading = document.getElementById("loadingMini") as HTMLDivElement;
@@ -21,8 +25,8 @@ export class VerificationComponent {
         resendClock.style.color = "#606060";
         this.http.post<HandleDataResponse>(
             "/email",
-            {type: "sendVerification", userData: {email: this.userDataService.get().email, pswdHash: this.userDataService.get().pswd.hash}},
-            {headers: new HttpHeaders({"Content-Type": "application/json"})}
+            {type: "sendVerification", authToken: this.tempStorage.get()["authToken"]},
+            {headers: new HttpHeaders({ "Content-Type": "application/json" })}
         ).subscribe((response) => {
             if (response.status === 409) {
                 (document.getElementById("emailVerification") as HTMLDivElement).style.display = "none";
@@ -37,9 +41,9 @@ export class VerificationComponent {
                 resendLoading.style.display = "none";
                 resendLink.style.display = "none";
                 resendClock.style.display = "";
-                if (response.accepted) this.notify.emit({message: "Successfully sent verification email.", status: "success"});
-                else if (response.status === 503) this.notify.emit({message: "Sorry, an internal service is currently unavailable. Our team is working on a resolution, and it should be back up soon. Please try again later.", status: "error"});
-                else this.notify.emit({message: "An unknown error occurred! Please try again later.", status: "error"});
+                if (response.accepted) this.notify.emit({ message: "Successfully sent verification email.", status: "success" });
+                else if (response.status === 503) this.notify.emit({ message: "Sorry, an internal service is currently unavailable. Our team is working on a resolution, and it should be back up soon. Please try again later.", status: "error" });
+                else this.notify.emit({ message: "An unknown error occurred! Please try again later.", status: "error" });
                 const timer = setInterval(() => {
                     const minutes = Math.floor(time / 60)
                     const seconds = time - minutes * 60
@@ -59,24 +63,25 @@ export class VerificationComponent {
         });
     }
     verificationActivate(): void {
-        for (let i = 0; i < 6; i++) {
-            this.code[i] = "";
-            const elem = document.getElementById("codeInput" + i) as HTMLInputElement;
-            elem.value = "";
-            elem.style.borderColor = "";
-        }
-        const email = this.userDataService.get().email;
-        const len = email.indexOf("@");
-        const txtLen = Math.floor(len*.3);
-        (document.getElementById("emailText") as HTMLDivElement).innerText = "We sent the verification email to: " +
-            "*".repeat(len-(txtLen>=4?4:txtLen)) + email.substring(len-(txtLen>=4?4:txtLen));
-        (document.getElementById("emailVerification") as HTMLDivElement).style.display = "";
-        (document.getElementById("container") as HTMLDivElement).style.display = "none";
-        this.sendVerificationEmail();
+        for (let i = 0; i < 6; i++) { const elem = document.getElementById("codeInput" + i) as HTMLInputElement; elem.value = ""; elem.style.borderColor = ""; this.code[i] = ""}
+        this.http.post<HandleDataResponse>(
+            "/handle_data",
+            { type: "retrieveData", authToken: this.tempStorage.get()["authToken"], requestedData: "email" },
+            { headers: new HttpHeaders({ "Content-Type": "application/json" }) }
+        ).subscribe((response) => {
+            const email = response.requestedData.email;
+            const len = email.indexOf("@");
+            const txtLen = Math.floor(len * .3);
+            (document.getElementById("emailText") as HTMLDivElement).innerText = "We sent the verification email to: " +
+                "*".repeat(len - (txtLen >= 4 ? 4 : txtLen)) + email.substring(len - (txtLen >= 4 ? 4 : txtLen));
+            (document.getElementById("emailVerification") as HTMLDivElement).style.display = "";
+            (document.getElementById("container") as HTMLDivElement).style.display = "none";
+            this.sendVerificationEmail();
+        });
     }
     checkCode(index: number, mode = "input", event?: Event | null, clipboardEvent?: ClipboardEvent) {
         if (mode === "delete") {
-            if (this.code[index] === "" && index !== 0) (document.getElementById(`codeInput${index-1}`) as HTMLInputElement).focus();
+            if (this.code[index] === "" && index !== 0) (document.getElementById(`codeInput${index - 1}`) as HTMLInputElement).focus();
             else if (index === 5 && this.code[index] !== "") {
                 this.code[index] = "";
                 (document.getElementById("codeInput" + index) as HTMLInputElement).value = "";
@@ -95,7 +100,7 @@ export class VerificationComponent {
                     this.code[indexModified] = (document.getElementById("codeInput" + indexModified) as HTMLInputElement).value = code.substring(i, i + 1); indexModified++;
                 }
             }
-            if (indexModified > 0) (document.getElementById(`codeInput${indexModified >= 5? 5:indexModified}`) as HTMLInputElement).focus();
+            if (indexModified > 0) (document.getElementById(`codeInput${indexModified >= 5 ? 5 : indexModified}`) as HTMLInputElement).focus();
             this.code.every((value => value !== "")) ? (document.getElementById("verifyButton") as HTMLButtonElement).disabled = false :
                 (document.getElementById("verifyButton") as HTMLButtonElement).disabled = true;
             return;
@@ -105,7 +110,7 @@ export class VerificationComponent {
             (document.getElementById("codeInput" + index) as HTMLInputElement).value = "";
             return;
         }
-        if (this.code[index] !== "") (document.getElementById(`codeInput${index===5?5:(index+1)}`) as HTMLInputElement).focus();
+        if (this.code[index] !== "") (document.getElementById(`codeInput${index === 5 ? 5 : (index + 1)}`) as HTMLInputElement).focus();
         this.code.every((value => value !== "")) ? (document.getElementById("verifyButton") as HTMLButtonElement).disabled = false :
             (document.getElementById("verifyButton") as HTMLButtonElement).disabled = true;
     }
@@ -115,17 +120,13 @@ export class VerificationComponent {
         (document.getElementById("buttonLoadingMini") as HTMLDivElement).style.display = "";
         this.http.post<HandleDataResponse>(
             "/email",
-            {type: "finishVerification", code: this.code.join(""), email: this.userDataService.get().email},
-            {headers: new HttpHeaders({"Content-Type": "application/json"})}
+            { type: "finishVerification", code: this.code.join(""), authToken: this.tempStorage.get()["authToken"]},
+            { headers: new HttpHeaders({ "Content-Type": "application/json" }) }
         ).subscribe((response) => {
             ["resendLinkMiddle", "resendLink", "verifyButton", "verifyButtonOuter"].forEach((id) => (document.getElementById(id) as HTMLDivElement).classList.remove("disabled"));
             (document.getElementById("verifyText") as HTMLSpanElement).style.display = "";
             (document.getElementById("buttonLoadingMini") as HTMLDivElement).style.display = "none";
             if (response.accepted) {
-                const user = this.userDataService.get();
-                user.emailVerified = true;
-                user.activeVerification = null;
-                this.userDataService.set(user);
                 (document.getElementById("emailVerification") as HTMLDivElement).style.display = "none";
                 (document.getElementById("container") as HTMLDivElement).style.display = "";
                 for (let i = 0; i < 6; i++) {
@@ -135,8 +136,8 @@ export class VerificationComponent {
                     elem.style.borderColor = "";
                 }
             }
-            else if (response.status === 400) {
-                this.notify.emit({message: "Invalid verification code!", status: "error"});
+            else if (response.status === 406) {
+                this.notify.emit({ message: "Invalid verification code!", status: "error" });
                 for (let i = 0; i < 6; i++) {
                     const elem = document.getElementById("codeInput" + i) as HTMLInputElement;
                     elem.style.borderColor = "#ff4b4bd8";
@@ -151,12 +152,12 @@ export class VerificationComponent {
                 message: "Sorry, an internal service is currently unavailable. Our team is working on a resolution, and it should be back up soon. Please try again later.",
                 status: "error"
             });
-            else this.notify.emit({message: "An unknown error occurred! Please try again later.", status: "error"});
+            else this.notify.emit({ message: "An unknown error occurred! Please try again later.", status: "error" });
         });
     }
     skipField(side: "left" | "right", index: number, event: Event) {
         event.preventDefault();
-        if (side === "left" && index !== 0) (document.getElementById(`codeInput${index-1}`) as HTMLInputElement).focus();
-        else if (side === "right" && index !== 5) (document.getElementById(`codeInput${index+1}`) as HTMLInputElement).focus();
+        if (side === "left" && index !== 0) (document.getElementById(`codeInput${index - 1}`) as HTMLInputElement).focus();
+        else if (side === "right" && index !== 5) (document.getElementById(`codeInput${index + 1}`) as HTMLInputElement).focus();
     }
 }
