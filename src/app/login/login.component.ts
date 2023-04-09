@@ -173,7 +173,7 @@ export class LoginComponent {
         const pswdInput = document.getElementById("passwordInputRegistration") as HTMLInputElement;
         const pswdError = document.getElementById("pswdError") as HTMLDivElement;
         const pswdDiv = document.getElementById("pswd_div") as HTMLDivElement
-        const spam = this.credentials.register.pswd === this.credentials.register.email
+        const spam = this.credentials.register.pswd === this.credentials.register.email || this.credentials.register.pswd.includes(this.credentials.register.email);
         const criterias: Array<[boolean, number]> = [
             [this.credentials.register.pswd.length >= 8, 1],
             [this.credentials.register.pswd.length >= 10, 1],
