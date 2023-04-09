@@ -13,6 +13,7 @@ import { VerificationComponent } from './verification/verification.component';
 import { VerifyComponent } from './verify/verify.component';
 import { UnderConstructionComponent } from './under-construction/under-construction.component';
 import { HomeComponent } from './home/home.component';
+import { MdComponent } from './md/md.component';
 
 @NgModule({
     declarations: [
@@ -24,7 +25,8 @@ import { HomeComponent } from './home/home.component';
         VerificationComponent,
         VerifyComponent,
         UnderConstructionComponent,
-        HomeComponent
+        HomeComponent,
+        MdComponent
     ],
     imports: [
         BrowserModule,
