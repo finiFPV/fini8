@@ -12,12 +12,11 @@ const { v4: uuidv4 } = require('uuid');
 
 const HTTP_PORT = process.env.HTTP_PORT || 80;
 const HTTPS_PORT = process.env.HTTPS_PORT || 443;
-const startedSuccessfully = false;
 const dir = __dirname + "/fini8";
 const indexRoutes = ['/', '/login', '/404', '/verify', '/under-construction'];
 const credentailsMinLength = {email: 6, pswd: 6};
-const WEBSITE = "fini8.eu";
-const logiFles = ["./serverAssets/request.log", "./serverAssets/error.log"];
+const WEBSITE = process.env.WEBSITE || "fini8.eu";
+const logFiles = ["./serverAssets/request.log", "./serverAssets/error.log"];
 const forbidenData = ["pswd", "_id"]
 class Loging {
     time() {
@@ -113,8 +112,8 @@ app.use((req, res, next) => {if (req.method === 'OPTIONS') return res.status(200
 app.use(bodyParser.json());
 //Logging
 if (process.env.DEBUG === "true") {
-    logiFles.forEach(file => stat(file, (err, stats) => {if (stats === undefined) writeFile(file, "", (err) => {if (err) console.error("file create err: " + err)})}));
-    logiFles.forEach(file => appendFile(file, `\n\n\nServer Started Successfully ${logging.time()}\n\n\n`, (err) => {if (err) console.error("file write start err: " + err)}));
+    logFiles.forEach(file => stat(file, (err, stats) => {if (stats === undefined) writeFile(file, "", (err) => {if (err) console.error("file create err: " + err)})}));
+    logFiles.forEach(file => appendFile(file, `\n\n\nServer Started Successfully ${logging.time()}\n\n\n`, (err) => {if (err) console.error("file write start err: " + err)}));
     app.use((req, res, next) => {
         let ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
         ip = ip.substr(0, 7) == "::ffff:" ? ip.substr(7) : ip;
@@ -137,8 +136,9 @@ app.post('/handle_data', async (req, res) => {
             !["email", "pswd"].every(key => req.body["data"].hasOwnProperty(key) && typeof req.body["data"][key] === "string")) ||
             (req.body["data"]["email"].length < credentailsMinLength.email || req.body["data"]["pswd"].length < credentailsMinLength.pswd)
         ) || req.body["type"] === "retrieveData" && !(
-            req.body.hasOwnProperty("authToken") && (/[0-9A-Fa-f]{64}/.test(req.body["authToken"])) && req.body.hasOwnProperty("requestedData") &&
-            (typeof req.body["requestedData"] === "string" || Array.isArray(req.body["requestedData"]) && req.body["requestedData"].every(item => typeof item === "string")))
+            req.body.hasOwnProperty("authToken") && (/[0-9A-Fa-f]{64}/.test(req.body["authToken"])) && req.body["authToken"].length === 64 && (req.body.hasOwnProperty("requestedData") &&
+            (typeof req.body["requestedData"] === "string" || Array.isArray(req.body["requestedData"]) && req.body["requestedData"].every(item => typeof item === "string")) ||
+            !req.body.hasOwnProperty("requestedData")))
     ) return res.status(200).json({status: 400, accepted: false, message: "Bad Request"});
     const ip = createHash('sha256').update((req.headers['x-forwarded-for'] || req.socket.remoteAddress)).digest('hex');;
     if (req.body["type"] === "login") {
@@ -174,6 +174,7 @@ app.post('/handle_data', async (req, res) => {
     } else if (req.body["type"] === "retrieveData") {
         const session = await mongoClient.collection('Sessions').findOne({token: {$eq: req.body["authToken"]}, userAgent: {$eq: req.get('User-Agent')}, ip: {$eq: ip}});
         if (session === null) return res.status(200).json({status: 401, accepted: false, message: "Invalid Session Token"});
+        if (!req.body.hasOwnProperty("requestedData")) return res.status(200).json({status: 200, accepted: true, requestedData: {sessionValid: session !== null}});
         const user = await mongoClient.collection('Users').findOne({_id: {$eq: session.userDocumentID}});
         const requestedData = {};
         if (Array.isArray(req.body["requestedData"]) ? req.body["requestedData"].some(key => forbidenData.includes(key)):forbidenData.includes(req.body["requestedData"])
@@ -187,8 +188,8 @@ app.post('/handle_data', async (req, res) => {
 //Email verification system
 app.post('/email', async (req, res) => {
     if (
-        (req.body["type"] === "sendVerification" || req.body["type"] === "cheackVerification") && (!req.body.hasOwnProperty("authToken") || !(/[0-9A-Fa-f]{64}/.test(req.body["authToken"]))) ||
-        req.body["type"] === "finishVerification" && !(
+        (req.body["type"] === "sendVerification" || req.body["type"] === "cheackVerification") && ((!req.body.hasOwnProperty("authToken") || !(/[0-9A-Fa-f]{64}/.test(req.body["authToken"]))) ||
+        req.body["authToken"].length !== 64) || req.body["type"] === "finishVerification" && !(
             (req.body.hasOwnProperty("id") && typeof req.body["id"] === "string") || (["code", "authToken"].every(key => req.body.hasOwnProperty(key) && typeof req.body[key] === "string") ||
             !(/[0-9A-Fa-f]{64}/.test(req.body["authToken"])))
         )
@@ -220,7 +221,7 @@ app.post('/email', async (req, res) => {
         };
     } else if (req.body["type"] === "finishVerification") {
         if (req.body.hasOwnProperty("id")) {
-            if (!(/[0-9A-Fa-f]{16}/.test(req.body.id))) return res.status(200).json({status: 400, accepted: false, message: "Id Not Valid"});
+            if (!(/[0-9A-Fa-f]{16}/.test(req.body.id) && req.body.id.length === 16)) return res.status(200).json({status: 400, accepted: false, message: "Id Not Valid"});
             await mongoClient.collection('Users').findOne({"activeVerification.id": {$eq: req.body.id}}).then(async (user) => {
                 if (user === null) return res.status(200).json({status: 406, accepted: false, message: "Id Not Valid"});
                 await mongoClient.collection('Users').updateOne({_id: {$eq: user._id}}, {$set: {emailVerified: true, activeVerification: null}})
@@ -230,7 +231,7 @@ app.post('/email', async (req, res) => {
                 }});
             });
         } else if (req.body.hasOwnProperty("code")) {
-            if (!(/[0-9]{6}/.test(req.body.code))) return res.status(200).json({status: 400, accepted: false, message: "Code Not Valid"});
+            if (!(/[0-9]{6}/.test(req.body.code) && req.body.code.length === 6)) return res.status(200).json({status: 400, accepted: false, message: "Code Not Valid"});
             const session = await mongoClient.collection('Sessions').findOne({token: {$eq: req.body["authToken"]}, userAgent: {$eq: req.get('User-Agent')}, ip: {$eq: ip}});
             if (session === null) return res.status(200).json({status: 401, accepted: false, message: "Invalid Session Token"});
             await mongoClient.collection('Users').findOne({_id: {$eq: session["userDocumentID"]}}).then(async (user) => {

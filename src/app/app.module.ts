@@ -12,6 +12,7 @@ import { NotificationComponent } from './notification/notification.component';
 import { VerificationComponent } from './verification/verification.component';
 import { VerifyComponent } from './verify/verify.component';
 import { UnderConstructionComponent } from './under-construction/under-construction.component';
+import { HomeComponent } from './home/home.component';
 
 @NgModule({
     declarations: [
@@ -22,7 +23,8 @@ import { UnderConstructionComponent } from './under-construction/under-construct
         NotificationComponent,
         VerificationComponent,
         VerifyComponent,
-        UnderConstructionComponent
+        UnderConstructionComponent,
+        HomeComponent
     ],
     imports: [
         BrowserModule,
