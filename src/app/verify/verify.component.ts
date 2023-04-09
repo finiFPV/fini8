@@ -30,7 +30,7 @@ export class VerifyComponent implements OnInit {
                 ).subscribe((response) => {
                     loadingComponent.loadingStop();
                     if (response.accepted) {
-                        (document.getElementById("emailText") as HTMLDivElement).innerText = "Successfully verified email address: " + response.email + " You can continue now.";
+                        (document.getElementById("emailText") as HTMLDivElement).innerText = "Successfully verified email address: " + response.requestedData.email + " You can continue now.";
                         (document.getElementById("success") as HTMLDivElement).style.display = "";
                     }
                     else if (response.status === 503) {

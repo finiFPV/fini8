@@ -4,13 +4,14 @@ import { LoginComponent } from './login/login.component';
 import { NotFoundComponent } from './not-found/not-found.component';
 import { VerifyComponent } from './verify/verify.component';
 import { UnderConstructionComponent } from './under-construction/under-construction.component';
+import { HomeComponent } from './home/home.component';
 
 const routes: Routes = [
     { path: 'login', component: LoginComponent },
     { path: 'verify', component: VerifyComponent },
     { path: '404', component: NotFoundComponent },
     { path: 'under-construction', component: UnderConstructionComponent },
-    { path: '**', redirectTo: 'login' }
+    { path: '**', component: HomeComponent }
 ];
 
 @NgModule({

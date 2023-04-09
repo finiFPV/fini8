@@ -5,7 +5,8 @@ import { LoadingComponent } from "../loading/loading.component";
 import { VerificationComponent } from "../verification/verification.component";
 import { v4 as uuidv4 } from 'uuid';
 import { HandleDataResponse } from "../handle-data-response";
-import { UserDataService } from "../user-data.service";
+import { TempStorageService } from "../temp-storage.service";
+import { Router } from '@angular/router';
 
 @Component({
     selector: "app-login",
@@ -18,12 +19,10 @@ export class LoginComponent {
     valid = {email: false, pswd: false};
     pswdRevealed: {[name: string]: boolean} = {"Registration": false, "Login": false};
     notifications: Array<{message: string, id: string, type: string}> = [];
-    errors = {emailMessageToggled: false, pswdHadSpaces: false};
-    userDataService: UserDataService;
+    errors = {emailMessageToggled: false, pswdHadSpam: false};
+    private tempStorage: TempStorageService;
 
-    constructor(private http: HttpClient, userDataService: UserDataService) {
-        this.userDataService = userDataService;
-    }
+    constructor(private http: HttpClient, tempStorage: TempStorageService, private router: Router) {this.tempStorage = tempStorage}
     removeNotification(id: string): void {
         const notification = document.getElementById(id) as HTMLDivElement;
         notification.classList.add("slideOutAnimation");
@@ -119,34 +118,45 @@ export class LoginComponent {
                     unknownError :
                 unknownError
             // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-            this.userDataService.set(response.userData!);
-            loadingComponent.loadingStop();
+            const authToken = response.authToken!;
             this.addNotification(message, response.accepted ? "success" : "error");
-            if (response.accepted && ((type === "login" && this.userDataService.get().emailVerified === false) || type === "register")) {
-                const verificationComponent = new VerificationComponent(this.http, this.userDataService);
-                verificationComponent.verificationActivate();
-                const cheackInterval = setInterval(() => {
-                    this.http.post<HandleDataResponse>(
-                        "/email",
-                        {type: "cheackVerification", email: this.userDataService.get().email, pswdHash: this.userDataService.get().pswd.hash},
-                        {headers: new HttpHeaders({"Content-Type": "application/json"})}
-                    ).subscribe((response) => {
-                        if (!response.accepted) {
-                            this.addNotification("An unknown error occurred!", "error");
-                            clearInterval(cheackInterval);
-                        }
-                        else if (response.userData?.emailVerified) {
-                            const len = this.userDataService.get().email.indexOf("@");
-                            const txtLen = Math.floor(len*.3);
-                            this.addNotification("Successfully verified email address: " + "*".repeat(len-(txtLen>=4?4:txtLen)) + this.userDataService.get().email.substring(len-(txtLen>=4?4:txtLen)) + "." + " You can continue now.", "success");
-                            this.userDataService.set(response.userData);
-                            (document.getElementById("emailVerification") as HTMLDivElement).style.display = "none";
-                            (document.getElementById("container") as HTMLDivElement).style.display = "";
-                            clearInterval(cheackInterval);
-                        }
-                    });
-                }, 5000);
-            }
+            if (response.accepted) {
+                this.http.post<HandleDataResponse>(
+                    "/email",
+                    {type: "cheackVerification", authToken: authToken},
+                    {headers: new HttpHeaders({"Content-Type": "application/json"})}
+                ).subscribe((response) => {
+                    if (type === "register" || type === "login" && !response.requestedData["emailVerified"]) {
+                        this.tempStorage.set({"authToken": authToken})
+                        const verificationComponent = new VerificationComponent(this.http, this.tempStorage);
+                        loadingComponent.loadingStop();
+                        verificationComponent.verificationActivate();
+                        const cheackInterval = setInterval(() => {
+                            this.http.post<HandleDataResponse>(
+                                "/email",
+                                {type: "cheackVerification", authToken: authToken},
+                                {headers: new HttpHeaders({"Content-Type": "application/json"})}
+                            ).subscribe((response) => {
+                                if (!response.accepted) {this.addNotification("An unknown error occurred!", "error");clearInterval(cheackInterval)}
+                                else if (response.requestedData["emailVerified"]) {
+                                    this.addNotification("Successfully verified email address: " + response.requestedData["email"] + "." + " You can continue now.", "success");
+                                    (document.getElementById("emailVerification") as HTMLDivElement).style.display = "none";
+                                    (document.getElementById("container") as HTMLDivElement).style.display = "";
+                                    clearInterval(cheackInterval);
+                                    document.cookie = `authToken=${authToken};expires=${new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toUTCString()}`;
+                                    loadingComponent.loadingActivate(null, "Redirecting...");
+                                    setTimeout(() => {this.router.navigate(["/"])}, 2000);
+                                }
+                            });
+                        }, 5000);
+                    } else {
+                        document.cookie = `authToken=${authToken};expires=${new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toUTCString()}`;
+                        loadingComponent.loadingStop();
+                        loadingComponent.loadingActivate(null, "Redirecting...");
+                        setTimeout(() => {this.router.navigate(["/"])}, 2000);
+                    }
+                });
+            } else loadingComponent.loadingStop();
         });
     }
     checkCredentials(): void {
@@ -163,7 +173,7 @@ export class LoginComponent {
         const pswdInput = document.getElementById("passwordInputRegistration") as HTMLInputElement;
         const pswdError = document.getElementById("pswdError") as HTMLDivElement;
         const pswdDiv = document.getElementById("pswd_div") as HTMLDivElement
-        const spaces = this.credentials.register.pswd.includes(" ")
+        const spam = this.credentials.register.pswd === this.credentials.register.email
         const criterias: Array<[boolean, number]> = [
             [this.credentials.register.pswd.length >= 8, 1],
             [this.credentials.register.pswd.length >= 10, 1],
@@ -202,14 +212,14 @@ export class LoginComponent {
             levelDispaly(0);
             this.valid.pswd = false;
         }
-        pswdDiv.style.transition = spaces || this.errors.pswdHadSpaces ? "none" : "";
-        pswdError.style.maxHeight = spaces ? "100px" : "";
-        if (spaces) {
+        pswdDiv.style.transition = spam || this.errors.pswdHadSpam ? "none" : "";
+        pswdError.style.maxHeight = spam ? "100px" : "";
+        if (spam) {
             this.valid.pswd = false;
             pswdInputDiv.style.borderColor = levels[0]["color"]
         }
-        pswdDiv.style.maxHeight = (this.valid.pswd || this.credentials.register.pswd.length === 0) && document.activeElement !== pswdInput || spaces ? "0" : "100px";
+        pswdDiv.style.maxHeight = (this.valid.pswd || this.credentials.register.pswd.length === 0) && document.activeElement !== pswdInput || spam ? "0" : "100px";
         this.checkCredentials();
-        this.errors.pswdHadSpaces = spaces;
+        this.errors.pswdHadSpam = spam;
     }
 }
