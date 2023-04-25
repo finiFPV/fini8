@@ -168,3 +168,54 @@ input {
     justify-content: flex-end;
     height: fit-content;
 }
+
+.remeberCheackBox {
+	transition: unset;
+	position: static;
+	width: unset;
+	height: unset;
+	color: unset;
+	background: unset;
+	margin: unset;
+	border: unset;
+    margin-right: 5px;
+    cursor: pointer;
+    appearance: none;
+    outline: 0;
+    background: transparent;
+    height: 20px;
+    width: 20px;
+    border: 3px solid #464646;
+    border-radius: 25%;
+    transition: all 0.05s;
+}
+
+.remeberCheackBox:checked {
+    background: #00eb9c;
+    box-shadow: #00ffaa67 1px 1px 3px 0px;
+}
+
+.remeberCheackBox:after {
+    content: ' ';
+    position: relative;
+    left: 40%;
+    top: 20%;
+    width: 15%;
+    height: 40%;
+    border: solid #00000000;
+    border-width: 0 2px 2px 0;
+    transform: rotate(50deg);
+    display: none;
+}
+
+.remeberCheackBox:checked:after {
+    display: block;
+}
+
+.rememberContainer {
+    margin-top: -15px;
+    margin-bottom: 15px;
+    color: #646464;
+    display: flex;
+    align-items: center;
+}

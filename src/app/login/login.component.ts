@@ -1,5 +1,5 @@
 /* eslint-disable no-useless-escape */
-import { Component } from "@angular/core";
+import { Component, OnInit } from "@angular/core";
 import { HttpClient, HttpHeaders } from "@angular/common/http";
 import { LoadingComponent } from "../loading/loading.component";
 import { VerificationComponent } from "../verification/verification.component";
@@ -14,15 +14,28 @@ import { Router } from '@angular/router';
     styleUrls: ["./login.component.scss"]
 })
 
-export class LoginComponent {
+export class LoginComponent implements OnInit {
     credentials = {register: {email: "", pswd: ""}, login: {email: "", pswd: ""}};
     valid = {email: false, pswd: false};
     pswdRevealed: {[name: string]: boolean} = {"Registration": false, "Login": false};
     notifications: Array<{message: string, id: string, type: string}> = [];
     errors = {emailMessageToggled: false, pswdHadSpam: false};
+    remeberCheackBox = {login: false, register: false};
     private tempStorage: TempStorageService;
 
     constructor(private http: HttpClient, tempStorage: TempStorageService, private router: Router) {this.tempStorage = tempStorage}
+    ngOnInit(): void {
+        const cookies: {[key: string]: string } = document.cookie.replace(/\s+/g, '').split(';').reduce((acc: {[key: string]: string}, item: string) => {const [key, value] = item.split('=');acc[key] = value;return acc}, {});
+        if(
+            cookies["authToken"] !== undefined &&
+            cookies["authToken"].length === 64 &&
+            /[0-9A-Fa-f]{64}/.test(cookies["authToken"])
+        ) {
+            this.http.post<HandleDataResponse>("/handle_data", {type: "retrieveData", authToken: cookies["authToken"]}, {headers: new HttpHeaders({"Content-Type": "application/json"})}).subscribe((response) => {
+                if (response.accepted && response.requestedData.sessionValid) this.router.navigate(['/'])
+            });
+        }
+    }
     removeNotification(id: string): void {
         const notification = document.getElementById(id) as HTMLDivElement;
         notification.classList.add("slideOutAnimation");
@@ -143,14 +156,14 @@ export class LoginComponent {
                                     (document.getElementById("emailVerification") as HTMLDivElement).style.display = "none";
                                     (document.getElementById("container") as HTMLDivElement).style.display = "";
                                     clearInterval(cheackInterval);
-                                    document.cookie = `authToken=${authToken};expires=${new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toUTCString()}`;
+                                    document.cookie = `authToken=${authToken};${this.remeberCheackBox.register?"expires="+new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toUTCString():""}`;
                                     loadingComponent.loadingActivate(null, "Redirecting...");
                                     setTimeout(() => {this.router.navigate(["/"])}, 2000);
                                 }
                             });
                         }, 5000);
                     } else {
-                        document.cookie = `authToken=${authToken};expires=${new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toUTCString()}`;
+                        document.cookie = `authToken=${authToken};${this.remeberCheackBox.login?"expires="+new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toUTCString():""}`;
                         loadingComponent.loadingStop();
                         loadingComponent.loadingActivate(null, "Redirecting...");
                         setTimeout(() => {this.router.navigate(["/"])}, 2000);

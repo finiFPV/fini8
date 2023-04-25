@@ -20,7 +20,7 @@ export class LoadingComponent {
         loading.style.height = '140px';
         loadingParrent.style.display = "";
         container.style.display = "none";
-        actionText.innerHTML = action;
+        actionText.innerText = action;
     }
 
     loadingStop(): void {

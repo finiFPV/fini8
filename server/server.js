@@ -139,8 +139,22 @@ app.post('/handle_data', async (req, res) => {
         ) || req.body["type"] === "retrieveData" && !(
             req.body.hasOwnProperty("authToken") && (/[0-9A-Fa-f]{64}/.test(req.body["authToken"])) && req.body["authToken"].length === 64 && (req.body.hasOwnProperty("requestedData") &&
             (typeof req.body["requestedData"] === "string" || Array.isArray(req.body["requestedData"]) && req.body["requestedData"].every(item => typeof item === "string")) ||
-            !req.body.hasOwnProperty("requestedData")))
+            !req.body.hasOwnProperty("requestedData"))
+        ) || req.body["type"] === "logout" && !(
+            req.body.hasOwnProperty("authToken") && (/[0-9A-Fa-f]{64}/.test(req.body["authToken"])) && req.body["authToken"].length === 64)
     ) return res.status(200).json({status: 400, accepted: false, message: "Bad Request"});
+    if (req.body["type"] === "login" || req.body["type"] === "register") {
+        let valid = false;
+        const regex = new RegExp("^[-!#$%&'*+\\/0-9=?^_\\p{L}{|}~](\\.?[-!#$%&'*+\\/0-9=?^_\\p{L}`{|}~])*@[\\p{L}0-9](-*\\.?[\\p{L}0-9])*\\.[\\p{L}](-?[\\p{L}0-9])+$", "u")
+        if (req.body["data"]["email"] && req.body["data"]["email"].length <= 254 && regex.test(req.body["data"]["email"])) {
+            const parts = req.body["data"]["email"].split("@");
+            if(parts[0].length <= 64) {
+                const domainParts = parts[1].split(".");
+                if(!domainParts.some((part) => {return part.length > 63})) valid = true;
+            }
+        }
+        if (!valid) return res.status(200).json({status: 400, accepted: false, message: "Bad Request"});
+    }
     const ip = createHash('sha256').update((req.headers['x-forwarded-for'] || req.socket.remoteAddress)).digest('hex');;
     if (req.body["type"] === "login") {
         const user = await mongoClient.collection('Users').findOne({email: {$eq: req.body["data"]["email"]}});
@@ -165,7 +179,7 @@ app.post('/handle_data', async (req, res) => {
             const salt = randomBytes(Math.ceil(8)).toString('hex').slice(0, 16);
             await pbkdf2(req.body["data"]["pswd"], salt, 1000000, 32, 'sha256', async (err, derivedKey) => {
                 const regResults = await mongoClient.collection('Users').insertOne(
-                    {email: req.body["data"]["email"], pswd: {hash: derivedKey.toString('hex'), salt: salt}, emailVerified: false, activeVerification: null}
+                    {email: req.body["data"]["email"], pswd: {hash: derivedKey.toString('hex'), salt: salt}, pfpSeed: randomBytes(8).toString('hex'), emailVerified: false, activeVerification: null}
                 );
                 const token = await createHash('sha256').update(regResults.insertedId.id.toString('hex') + uuidv4() + ip).digest('hex');
                 await mongoClient.collection('Sessions').insertOne({userDocumentID: regResults.insertedId, userAgent: req.get('User-Agent'), ip: ip, createdAt: new Date(), token: token});
@@ -177,6 +191,7 @@ app.post('/handle_data', async (req, res) => {
         if (session === null) return res.status(200).json({status: 401, accepted: false, message: "Invalid Session Token"});
         if (!req.body.hasOwnProperty("requestedData")) return res.status(200).json({status: 200, accepted: true, requestedData: {sessionValid: session !== null}});
         const user = await mongoClient.collection('Users').findOne({_id: {$eq: session.userDocumentID}});
+        if (user === null) return res.status(200).json({status: 401, accepted: false, message: "Invalid Session Token"});
         const requestedData = {};
         if (user.emailVerified === false && (Array.isArray(req.body["requestedData"]) ? req.body["requestedData"].some(key => authorizedData.includes(key)):authorizedData.includes(req.body["requestedData"]))
         ) return res.status(200).json({status: 401, accepted: false, message: "Querying Data That Requires Email Verification While Email Is Not Verified"});
@@ -185,6 +200,11 @@ app.post('/handle_data', async (req, res) => {
         if (Array.isArray(req.body["requestedData"]) ? req.body["requestedData"].some(key => (requestedData[key] = user[key]) == null):
         (requestedData[req.body["requestedData"]] = user[req.body["requestedData"]]) == null) return res.status(200).json({status: 404, accepted: false, message: "Requested Data Not Found"});
         return res.status(200).json({status: 200, accepted: true, requestedData: requestedData});
+    } else if (req.body["type"] === "logout") {
+        const session = await mongoClient.collection('Sessions').findOne({token: {$eq: req.body["authToken"]}, userAgent: {$eq: req.get('User-Agent')}, ip: {$eq: ip}});
+        if (session === null) return res.status(200).json({status: 401, accepted: false, message: "Invalid Session Token"});
+        await mongoClient.collection('Sessions').deleteOne({_id: {$eq: session._id}});
+        return res.status(200).json({status: 200, accepted: true});
     } else return res.status(200).json({status: 405, accepted: false, message: "Type Not Allowed"});
 })
 

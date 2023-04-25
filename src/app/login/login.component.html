@@ -12,7 +12,11 @@
                     <img id="hidePasswordImageLogin" class="buttonImage hidePasswordImage" src="/assets/img/eye_2.png" alt="Hide password button" style="display: none;">
                 </button>
             </div><br>
-            <input type="submit"value="Login" id="login" class="button" style="margin-top: -8px;" disabled>
+            <div class="rememberContainer">
+                <input type="checkbox" id="remeberCheackBoxLogin" class="remeberCheackBox" name="remeberCheackBoxLogin" [(ngModel)]="remeberCheackBox.login" (ngModelChange)="remeberCheackBox.register = remeberCheackBox.login">
+                <label for="remeberCheackBoxLogin" style="position: relative; top:1px">Remember This Device</label>
+            </div>
+            <input type="submit" value="Login" id="login" class="button" style="margin-top: -8px;" disabled>
         </form>
     </div>
     <div class="main">
@@ -78,6 +82,10 @@
                         The password can't be the same as email!
                     </div>
                 </div>
+            </div>
+            <div class="rememberContainer" style="margin-top: -10px; margin-bottom: 5px;">
+                <input type="checkbox" id="remeberCheackBoxRegister" class="remeberCheackBox" name="remeberCheackBoxRegister" [(ngModel)]="remeberCheackBox.register" (ngModelChange)="remeberCheackBox.login = remeberCheackBox.register">
+                <label for="remeberCheackBoxRegister" style="position: relative; top:1px">Remember This Device</label>
             </div>
             <input type="submit" value="Register" id="register" class="button" style="position: relative; bottom: 1px; margin-top: 2px;" disabled>
         </form>

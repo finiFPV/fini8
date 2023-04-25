@@ -49,3 +49,5 @@ Thumbs.db
 /server/fini81
 
 .env
+error.log
+request.log

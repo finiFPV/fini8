@@ -4,6 +4,7 @@ export interface User {
         hash: string,
         salt: string
     },
+    pfpSeed: string,
     emailVerified: boolean,
     activeVerification: {id: string, code: string} | null
 }
