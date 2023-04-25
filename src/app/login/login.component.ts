@@ -6,6 +6,7 @@ import { VerificationComponent } from "../verification/verification.component";
 import { v4 as uuidv4 } from 'uuid';
 import { HandleDataResponse } from "../handle-data-response";
 import { TempStorageService } from "../temp-storage.service";
+import { CookiesService } from "../cookies.service";
 import { Router } from '@angular/router';
 
 @Component({
@@ -21,11 +22,15 @@ export class LoginComponent implements OnInit {
     notifications: Array<{message: string, id: string, type: string}> = [];
     errors = {emailMessageToggled: false, pswdHadSpam: false};
     remeberCheackBox = {login: false, register: false};
-    private tempStorage: TempStorageService;
+    constructor(
+        private http: HttpClient,
+        private tempStorage: TempStorageService,
+        private router: Router,
+        private cookiesService: CookiesService
+    ) {}
 
-    constructor(private http: HttpClient, tempStorage: TempStorageService, private router: Router) {this.tempStorage = tempStorage}
     ngOnInit(): void {
-        const cookies: {[key: string]: string } = document.cookie.replace(/\s+/g, '').split(';').reduce((acc: {[key: string]: string}, item: string) => {const [key, value] = item.split('=');acc[key] = value;return acc}, {});
+        const cookies: {[key: string]: string } = this.cookiesService.get();
         if(
             cookies["authToken"] !== undefined &&
             cookies["authToken"].length === 64 &&
@@ -51,13 +56,9 @@ export class LoginComponent implements OnInit {
     }
     revealPassword(event: Event, subID: string): void {
         event.preventDefault();
-        const reveal = document.getElementById("revealPasswordImage" + subID) as HTMLImageElement;
-        const hide = document.getElementById("hidePasswordImage" + subID) as HTMLImageElement;
-        const pswdInput = document.getElementById("passwordInput" + subID) as HTMLInputElement;
-
-        reveal.style.display = !this.pswdRevealed[subID] ? "none" : "";
-        hide.style.display = !this.pswdRevealed[subID] ? "" : "none";
-        pswdInput.type = !this.pswdRevealed[subID] ? "text" : "password";
+        (document.getElementById("revealPasswordImage" + subID) as HTMLImageElement).style.display = !this.pswdRevealed[subID] ? "none" : "";
+        (document.getElementById("hidePasswordImage" + subID) as HTMLImageElement).style.display = !this.pswdRevealed[subID] ? "" : "none";
+        (document.getElementById("passwordInput" + subID) as HTMLInputElement).type = !this.pswdRevealed[subID] ? "text" : "password";
         this.pswdRevealed[subID] = !this.pswdRevealed[subID];
     }
     revealEmailMessage(event: Event | null, toggle = true, hide = false): void {
@@ -156,14 +157,14 @@ export class LoginComponent implements OnInit {
                                     (document.getElementById("emailVerification") as HTMLDivElement).style.display = "none";
                                     (document.getElementById("container") as HTMLDivElement).style.display = "";
                                     clearInterval(cheackInterval);
-                                    document.cookie = `authToken=${authToken};${this.remeberCheackBox.register?"expires="+new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toUTCString():""}`;
+                                    this.cookiesService.set("authToken", authToken, this.remeberCheackBox.register ? 30 : 0);
                                     loadingComponent.loadingActivate(null, "Redirecting...");
                                     setTimeout(() => {this.router.navigate(["/"])}, 2000);
                                 }
                             });
                         }, 5000);
                     } else {
-                        document.cookie = `authToken=${authToken};${this.remeberCheackBox.login?"expires="+new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toUTCString():""}`;
+                        this.cookiesService.set("authToken", authToken, this.remeberCheackBox.login ? 30 : 0);
                         loadingComponent.loadingStop();
                         loadingComponent.loadingActivate(null, "Redirecting...");
                         setTimeout(() => {this.router.navigate(["/"])}, 2000);
