@@ -7,6 +7,7 @@ import { Component } from '@angular/core';
 })
 
 export class LoadingComponent {
+    lastTitle: string = document.title;
     loadingActivate(event: Event | null, action: string): void {
         const container = document.getElementById("container") as HTMLDivElement;
         const actionText = document.getElementById("loadingAction") as HTMLHeadingElement;
@@ -15,6 +16,8 @@ export class LoadingComponent {
 
         if (event !== null) event.preventDefault();
 
+        this.lastTitle = document.title;
+        document.title = "Loading...";
         loading.style.display = "";
         loading.style.width = '140px';
         loading.style.height = '140px';
@@ -28,5 +31,6 @@ export class LoadingComponent {
         const container = document.getElementById("container") as HTMLDivElement;
         loadingParrent.style.display = "none";
         container.style.display = "";
+        document.title = this.lastTitle;
     }
 }

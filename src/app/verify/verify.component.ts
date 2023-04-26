@@ -10,7 +10,9 @@ import { LoadingComponent } from "../loading/loading.component";
     styleUrls: ['./verify.component.scss']
 })
 export class VerifyComponent implements OnInit {
-    constructor(private http: HttpClient, private activatedRoute: ActivatedRoute, private router: Router) {}
+    constructor(private http: HttpClient, private activatedRoute: ActivatedRoute, private router: Router) {
+        document.title = "Verify your email address";
+    }
     cheackVerification(type="initial"): void {
         if (type === "reCheack") {
             (document.getElementById("fail") as HTMLDivElement).style.display = "none";

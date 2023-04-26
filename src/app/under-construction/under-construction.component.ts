@@ -7,7 +7,9 @@ import { Router } from '@angular/router';
     styleUrls: ['./under-construction.component.scss']
 })
 export class UnderConstructionComponent {
-    constructor(private router: Router) {}
+    constructor(private router: Router) {
+        document.title = "This page is under construction";
+    }
     goHome() {
         this.router.navigate(['/'])
     }

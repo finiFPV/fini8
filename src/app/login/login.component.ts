@@ -16,18 +16,20 @@ import { Router } from '@angular/router';
 })
 
 export class LoginComponent implements OnInit {
-    credentials = {register: {email: "", pswd: ""}, login: {email: "", pswd: ""}};
-    valid = {email: false, pswd: false};
     pswdRevealed: {[name: string]: boolean} = {"Registration": false, "Login": false};
+    credentials = {register: {email: "", pswd: ""}, login: {email: "", pswd: ""}};
     notifications: Array<{message: string, id: string, type: string}> = [];
     errors = {emailMessageToggled: false, pswdHadSpam: false};
     remeberCheackBox = {login: false, register: false};
+    valid = {email: false, pswd: false};
     constructor(
         private http: HttpClient,
         private tempStorage: TempStorageService,
         private router: Router,
         private cookiesService: CookiesService
-    ) {}
+    ) {
+        document.title = "Login/Register";
+    }
 
     ngOnInit(): void {
         const cookies: {[key: string]: string } = this.cookiesService.get();

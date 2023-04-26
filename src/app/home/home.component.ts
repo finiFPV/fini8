@@ -18,7 +18,9 @@ export class HomeComponent implements OnInit {
         private router: Router,
         private http: HttpClient,
         private cookiesService: CookiesService
-    ) {}
+    ) {
+        document.title = "Fini8";
+    }
 
     ngOnInit(): void {
         const cookies: {[key: string]: string } = this.cookiesService.get()
