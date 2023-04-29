@@ -1,0 +1,13 @@
+version: '3'
+services:
+    webserver:
+        image: fininimini/website
+        container_name: webserver
+        restart: unless-stopped
+        ports:
+            - "80:80"
+            - "443:443"
+        volumes:
+            - webserver:/app/serverAssets
+volumes:
+    webserver:
